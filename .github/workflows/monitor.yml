@@ -1,0 +1,42 @@
+name: Monitor Centinela Lefebvre
+
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.10'
+  MONITORED_URL: 'https://centinela.lefebvre.es'
+
+jobs:
+  monitor-web:
+    name: Verificar disponibilidad web
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+      
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install selenium requests
+      
+      - name: Instalar Google Chrome
+        uses: browser-actions/setup-chrome@latest
+        with:
+          chrome-version: stable
+      
+      - name: Ejecutar monitor
+        env:
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+        run: |
+          python web_monitor.py "${{ env.MONITORED_URL }}" "$TEAMS_WEBHOOK"
