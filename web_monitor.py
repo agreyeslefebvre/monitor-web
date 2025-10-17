@@ -39,7 +39,6 @@ URLS_TO_MONITOR = [
     "https://ws050.juntadeandalucia.es/vea/faces/vi/procedimientoDetalle.xhtml",
     "https://sedeagpd.gob.es/sede-electronica-web/",
     "https://sedeagpd.gob.es/sede-electronica-web/vistas/formBrechaSeguridad/nbs/procedimientoBrechaSeguridad.jsf",
-    "https://complianceangular.affin.es/" ,
 ]
 
 
