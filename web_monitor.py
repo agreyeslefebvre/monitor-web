@@ -5,7 +5,8 @@ Verifica el estado de una URL y envía alertas cuando no está disponible.
 
 import sys
 import json
-from typing import Tuple, Optional
+import time
+from typing import Optional
 from datetime import datetime
 from dataclasses import dataclass
 
@@ -72,11 +73,10 @@ class WebMonitor:
         print(f"[{timestamp.strftime('%Y-%m-%d %H:%M:%S')}] Verificando {self.url}...")
         
         try:
-          self._driver.get(self.url)
+            self._driver.get(self.url)
             
             # Esperar un poco para que cargue el título
-            import time
-            time.sleep(2)
+            time.sleep(3)
             
             if self._driver.title:
                 message = f"Web disponible. Título: '{self._driver.title}'"
@@ -215,7 +215,7 @@ class WebMonitor:
                 error_result = MonitorResult(False, error_message, datetime.now())
                 self.send_teams_notification(error_result)
             except Exception:
-                pass  # Si falla la notificación, no hay mucho más que hacer
+                pass
             
             return 1
         
@@ -239,10 +239,8 @@ def main() -> int:
     Returns:
         Código de salida del programa
     """
-    # Configuración por defecto
     default_url = "https://centinela.lefebvre.es"
     
-    # Obtener parámetros de línea de comandos
     url = sys.argv[1] if len(sys.argv) > 1 else default_url
     webhook = sys.argv[2] if len(sys.argv) > 2 else ""
     
@@ -251,7 +249,6 @@ def main() -> int:
         print("Uso: python web_monitor.py [URL] TEAMS_WEBHOOK")
         return 1
     
-    # Mostrar información de la ejecución
     print("=" * 70)
     print("MONITOR DE DISPONIBILIDAD WEB")
     print("=" * 70)
@@ -259,11 +256,9 @@ def main() -> int:
     print("=" * 70)
     print()
     
-    # Ejecutar monitoreo
     monitor = WebMonitor(url, webhook)
     exit_code = monitor.run(notify_on_success=False)
     
-    # Mostrar resultado final
     print()
     print("=" * 70)
     status = "✅ Web funcionando correctamente" if exit_code == 0 else "❌ Web NO disponible"
