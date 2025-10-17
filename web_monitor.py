@@ -19,7 +19,6 @@ from selenium.common.exceptions import TimeoutException, WebDriverException
 
 # Lista de URLs a monitorear
 URLS_TO_MONITOR = [
-    "https://centinela.lefebvre.es",
     "https://www.iberley.es/legislacion/codigo-penal-ley-organica-10-1995-23-nov-1948765?ancla=89095#ancla_89095",
     "https://www.juntadeandalucia.es/export/drupaljda/Plan_antifraude_25_05_22_ptg.pdf",
     "https://www.ine.es/daco/daco42/clasificaciones/cnae09/nace11_nace2.pdf",
@@ -40,6 +39,7 @@ URLS_TO_MONITOR = [
     "https://ws050.juntadeandalucia.es/vea/faces/vi/procedimientoDetalle.xhtml",
     "https://sedeagpd.gob.es/sede-electronica-web/",
     "https://sedeagpd.gob.es/sede-electronica-web/vistas/formBrechaSeguridad/nbs/procedimientoBrechaSeguridad.jsf",
+    "https://complianceangular.affin.es/" ,
 ]
 
 
