@@ -1,14 +1,14 @@
-name: Monitor Centinela Lefebvre
+name: Monitor URLs Múltiples
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 9 * * *'
+    - cron: '0 9 * * *'  # Cada día a las 9 AM
 
 jobs:
   monitor-web:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15  # Más tiempo porque son muchas URLs
     
     steps:
       - name: Checkout
@@ -32,4 +32,4 @@ jobs:
         env:
           TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
         run: |
-          python web_monitor.py "https://centinela.lefebvre.es" "$TEAMS_WEBHOOK"
+          python web_monitor.py "$TEAMS_WEBHOOK"
