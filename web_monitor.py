@@ -72,7 +72,11 @@ class WebMonitor:
         print(f"[{timestamp.strftime('%Y-%m-%d %H:%M:%S')}] Verificando {self.url}...")
         
         try:
-            self._driver.get(self.url)
+          self._driver.get(self.url)
+            
+            # Esperar un poco para que cargue el título
+            import time
+            time.sleep(2)
             
             if self._driver.title:
                 message = f"Web disponible. Título: '{self._driver.title}'"
@@ -166,7 +170,7 @@ class WebMonitor:
                 timeout=10
             )
             
-            if response.status_code == 200:
+            if response.status_code in [200, 202]:
                 print("✓ Notificación enviada a Teams correctamente")
                 return True
             else:
