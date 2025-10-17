@@ -30,9 +30,9 @@ jobs:
           pip install selenium requests
       
       - name: Instalar Google Chrome
-        uses: browser-actions/setup-chrome@latest
-        with:
-          chrome-version: stable
+        run: |
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt-get install -y ./google-chrome-stable_current_amd64.deb
       
       - name: Ejecutar monitor
         env:
