@@ -101,6 +101,38 @@ class WebMonitor:
         """
         timestamp = datetime.now()
         
+        # Dominios problemáticos que bloquean requests automáticos
+        problematic_domains = ['igualdadenlaempresa.es']
+        
+        # Si es un dominio problemático, usar Selenium
+        if any(domain in url for domain in problematic_domains):
+            try:
+                self._driver.get(url)
+                time.sleep(3)  # Esperar a que intente descargar o mostrar
+                
+                # Verificar que no hay error 404 o similar
+                page_source = self._driver.page_source.lower()
+                error_indicators = ['404', 'not found', 'no encontrado', 'error']
+                
+                if any(indicator in page_source[:500] for indicator in error_indicators):
+                    message = "Archivo no disponible (error en página)"
+                    print(f"  ✗ {message}")
+                    return MonitorResult(url, False, message, timestamp)
+                
+                message = "Archivo disponible (verificado con navegador)"
+                print(f"  ✓ {message}")
+                return MonitorResult(url, True, message, timestamp)
+                
+            except TimeoutException:
+                message = f"Timeout al acceder al archivo (>{self.TIMEOUT_SECONDS}s)"
+                print(f"  ✗ {message}")
+                return MonitorResult(url, False, message, timestamp)
+            except Exception as e:
+                message = f"Error al verificar archivo: {str(e)[:80]}"
+                print(f"  ✗ {message}")
+                return MonitorResult(url, False, message, timestamp)
+        
+        # Para otros dominios, usar requests (más rápido)
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': '*/*',
@@ -129,7 +161,7 @@ class WebMonitor:
                 timeout=self.FILE_TIMEOUT,
                 allow_redirects=True,
                 headers=headers,
-                stream=True,  # No descargar todo, solo verificar
+                stream=True,
                 verify=True
             )
             
@@ -247,59 +279,95 @@ class WebMonitor:
         else:
             return self._check_web_url(url)
     
-    def _build_teams_card(self, failed_urls: List[MonitorResult], total: int) -> dict:
+    def _build_teams_card(self, failed_urls: List[MonitorResult], all_results: List[MonitorResult]) -> dict:
         """
         Construye el mensaje adaptativo para Microsoft Teams.
         
         Args:
             failed_urls: Lista de URLs que fallaron
-            total: Total de URLs verificadas
+            all_results: Lista de todos los resultados
             
         Returns:
             Diccionario con el formato de MessageCard para Teams
         """
         timestamp_str = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        total = len(all_results)
         failed_count = len(failed_urls)
         success_count = total - failed_count
         
-        # Construir lista de URLs caídas
+        # Construir resumen inicial
         facts = [
             {"name": "📊 Total verificadas:", "value": str(total)},
-            {"name": "✅ Disponibles:", "value": str(success_count)},
-            {"name": "❌ No disponibles:", "value": str(failed_count)},
-            {"name": "⏰ Hora verificación:", "value": timestamp_str},
-            {"name": "", "value": ""}  # Separador
+            {"name": "✅ Disponibles:", "value": f"**{success_count}** URLs"},
+            {"name": "❌ Con problemas:", "value": f"**{failed_count}** URLs"},
+            {"name": "⏰ Verificación:", "value": timestamp_str},
+            {"name": "━━━━━━━━━━━━━━━━", "value": "**URLs con Problemas:**"}
         ]
         
-        # Añadir detalles de cada URL caída (máximo 8 para no saturar Teams)
-        for i, result in enumerate(failed_urls[:8], 1):
-            url_short = result.url[:65] + "..." if len(result.url) > 65 else result.url
+        # Añadir URLs caídas con formato bonito
+        for i, result in enumerate(failed_urls[:10], 1):
+            # Extraer dominio para hacerlo más legible
+            try:
+                domain = result.url.split('/')[2]
+                path = '/' + '/'.join(result.url.split('/')[3:])[:40]
+                if len(path) > 40:
+                    path = path[:37] + "..."
+            except:
+                domain = result.url[:50]
+                path = ""
+            
             facts.append({
-                "name": f"🔴 URL {i}:",
-                "value": f"{url_short}\n💬 {result.message}"
+                "name": f"❌ {i}. {domain}",
+                "value": f"📍 {path}\n💬 *{result.message}*"
             })
         
-        if failed_count > 8:
+        if failed_count > 10:
             facts.append({
-                "name": "⚠️ Nota:",
-                "value": f"Y {failed_count - 8} URL(s) más con problemas. Ver logs en GitHub Actions."
+                "name": "⚠️ Aviso:",
+                "value": f"Hay {failed_count - 10} URL(s) más con problemas. Consultar logs de GitHub Actions."
             })
+        
+        # Añadir separador y URLs que SÍ funcionan
+        if success_count > 0:
+            facts.append({"name": "━━━━━━━━━━━━━━━━", "value": "**URLs Funcionando:**"})
+            
+            working_urls = [r for r in all_results if r.is_available]
+            # Mostrar primeras 8 URLs que funcionan
+            for i, result in enumerate(working_urls[:8], 1):
+                try:
+                    domain = result.url.split('/')[2]
+                except:
+                    domain = result.url[:50]
+                
+                if i % 4 == 1:
+                    urls_batch = ""
+                
+                urls_batch += f"✅ {domain}   "
+                
+                if i % 4 == 0 or i == len(working_urls[:8]):
+                    facts.append({"name": " ", "value": urls_batch.strip()})
+            
+            if success_count > 8:
+                facts.append({
+                    "name": " ",
+                    "value": f"*... y {success_count - 8} más funcionando correctamente*"
+                })
         
         return {
             "@type": "MessageCard",
             "@context": "https://schema.org/extensions",
             "summary": f"⚠️ {failed_count} de {total} URLs no disponibles",
-            "themeColor": "FF0000",
-            "title": f"🚨 ALERTA - {failed_count} URL(s) con Problemas",
+            "themeColor": "dc3545",  # Rojo bonito
+            "title": f"🚨 ALERTA - {failed_count} URL(s) Requieren Atención",
             "sections": [{
-                "activityTitle": "Monitor Automático de Disponibilidad",
-                "activitySubtitle": f"Verificación realizada el {timestamp_str}",
+                "activityTitle": "🔍 Monitor Automático de Disponibilidad",
+                "activitySubtitle": f"Verificación completada - Se detectaron problemas",
                 "facts": facts,
                 "markdown": True
             }],
             "potentialAction": [{
                 "@type": "OpenUri",
-                "name": "📋 Ver logs completos",
+                "name": "📋 Ver Logs Completos en GitHub",
                 "targets": [{
                     "os": "default",
                     "uri": "https://github.com/agreyeslefebvre/monitor-web/actions"
@@ -307,24 +375,43 @@ class WebMonitor:
             }]
         }
     
-    def _build_success_card(self, total: int) -> dict:
-        """Construye mensaje de éxito para Teams."""
+    def _build_success_card(self, results: List[MonitorResult]) -> dict:
+        """Construye mensaje de éxito detallado para Teams."""
         timestamp_str = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        total = len(results)
+        
+        # Agrupar URLs por dominio para hacerlo más legible
+        facts = [
+            {"name": "📊 Total verificadas:", "value": str(total)},
+            {"name": "✅ Estado general:", "value": "**TODAS FUNCIONANDO CORRECTAMENTE**"},
+            {"name": "⏰ Verificación:", "value": timestamp_str},
+            {"name": "━━━━━━━━━━━━━━━━", "value": "**URLs Verificadas:**"}
+        ]
+        
+        # Mostrar todas las URLs en grupos de 5 para que sea legible
+        for i in range(0, len(results), 5):
+            batch = results[i:i+5]
+            urls_text = ""
+            for result in batch:
+                # Acortar URL para que se vea mejor
+                domain = result.url.split('/')[2] if len(result.url.split('/')) > 2 else result.url
+                urls_text += f"✅ {domain}\n"
+            
+            facts.append({
+                "name": f"Grupo {i//5 + 1}:",
+                "value": urls_text.strip()
+            })
         
         return {
             "@type": "MessageCard",
             "@context": "https://schema.org/extensions",
-            "summary": f"✅ Todas las URLs funcionan correctamente",
-            "themeColor": "00FF00",
-            "title": "✅ Monitor - Todo Correcto",
+            "summary": f"✅ {total} URLs funcionando correctamente",
+            "themeColor": "28a745",  # Verde bonito
+            "title": "✅ Monitor Diario - Sistema Operativo",
             "sections": [{
-                "activityTitle": "Monitor Automático de Disponibilidad",
-                "activitySubtitle": f"Verificación realizada el {timestamp_str}",
-                "facts": [
-                    {"name": "📊 URLs verificadas:", "value": str(total)},
-                    {"name": "✅ Estado:", "value": "Todas disponibles"},
-                    {"name": "⏰ Hora:", "value": timestamp_str}
-                ],
+                "activityTitle": "🎯 Verificación Automática Completada",
+                "activitySubtitle": f"Todas las URLs monitoreadas están disponibles",
+                "facts": facts,
                 "markdown": True
             }]
         }
@@ -359,13 +446,13 @@ class WebMonitor:
             print(f"\n✗ Error al enviar notificación: {str(e)}")
             return False
     
-    def run(self, urls: List[str], notify_on_success: bool = False) -> int:
+    def run(self, urls: List[str], notify_always: bool = True) -> int:
         """
         Ejecuta el monitoreo de todas las URLs.
         
         Args:
             urls: Lista de URLs a verificar
-            notify_on_success: Si True, notifica también cuando todo funciona
+            notify_always: Si True, notifica siempre (éxito y fallos)
             
         Returns:
             Código de salida: 0 si todo OK, 1 si hay fallos
@@ -398,15 +485,17 @@ class WebMonitor:
                     print(f"  - {result.url}")
                     print(f"    └─ {result.message}")
             
-            # Enviar notificación
+            # SIEMPRE enviar notificación (configurado con notify_always=True)
             if failed_urls:
-                card = self._build_teams_card(failed_urls, len(urls))
+                print("\n📤 Enviando notificación de ALERTA a Teams...")
+                card = self._build_teams_card(failed_urls, results)
                 self.send_teams_notification(card)
                 return 1
             else:
                 print("\n✅ Todas las URLs funcionan correctamente")
-                if notify_on_success:
-                    card = self._build_success_card(len(urls))
+                if notify_always:
+                    print("📤 Enviando notificación de ÉXITO a Teams...")
+                    card = self._build_success_card(results)
                     self.send_teams_notification(card)
                 return 0
         
@@ -448,7 +537,7 @@ def main() -> int:
     print("="*70)
     
     monitor = WebMonitor(webhook)
-    exit_code = monitor.run(URLS_TO_MONITOR, notify_on_success=False)
+    exit_code = monitor.run(URLS_TO_MONITOR, notify_always=True)  # ← SIEMPRE notifica
     
     return exit_code
 
